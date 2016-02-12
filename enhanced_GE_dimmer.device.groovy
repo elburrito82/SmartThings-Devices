@@ -1,19 +1,48 @@
+// As requested by @ultrazero on the forums, here's the complete listing for my device type:
+/**
+ *  Copyright 2015 SmartThings
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ *  in compliance with the License. You may obtain a copy of the License at:
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+ *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
+ *  for the specific language governing permissions and limitations under the License.
+ *
+ */
 metadata {
-	// Automatically generated. Make future change here.
-	definition (name: "My GE Fan Control Switch v2", namespace: "jscgs350", author: "SmartThings") {
+	definition (name: "My Enhanced GE Dimmer Switch", namespace: "jscgs350", author: "SmartThings") {
 		capability "Switch Level"
 		capability "Actuator"
 		capability "Indicator"
 		capability "Switch"
 		capability "Polling"
 		capability "Refresh"
-	capability "Sensor"
+		capability "Sensor"
         
-        command "lowSpeed"
-        command "medSpeed"
-        command "highSpeed"
+        command "fixRampRate"
 
-		attribute "currentSpeed", "string"
+		fingerprint inClusters: "0x26"
+	}
+
+	simulator {
+		status "on":  "command: 2003, payload: FF"
+		status "off": "command: 2003, payload: 00"
+		status "09%": "command: 2003, payload: 09"
+		status "10%": "command: 2003, payload: 0A"
+		status "33%": "command: 2003, payload: 21"
+		status "66%": "command: 2003, payload: 42"
+		status "99%": "command: 2003, payload: 63"
+
+		// reply messages
+		reply "2001FF,delay 5000,2602": "command: 2603, payload: FF"
+		reply "200100,delay 5000,2602": "command: 2603, payload: 00"
+		reply "200119,delay 5000,2602": "command: 2603, payload: 19"
+		reply "200132,delay 5000,2602": "command: 2603, payload: 32"
+		reply "20014B,delay 5000,2602": "command: 2603, payload: 4B"
+		reply "200163,delay 5000,2602": "command: 2603, payload: 63"
 	}
 
 	tiles(scale: 2) {
@@ -21,50 +50,32 @@ metadata {
 			tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
 				attributeState "on", label:'${name}', action:"switch.off", icon:"st.switches.switch.on", backgroundColor:"#79b821", nextState:"turningOff"
 				attributeState "off", label:'${name}', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"turningOn"
+				attributeState "turningOn", label:'${name}', action:"switch.off", icon:"st.switches.switch.on", backgroundColor:"#79b821", nextState:"turningOff"
+				attributeState "turningOff", label:'${name}', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"turningOn"
 			}
-            tileAttribute ("statusText", key: "SECONDARY_CONTROL") {
-           		attributeState "statusText", label:'${currentValue}'       		
-            }
-            tileAttribute("device.level", key: "VALUE_CONTROL"){
-                attributeState "lowspeed", action: "lowSpeed"
-                attributeState "medspeed", action: "medSpeed"
-                attributeState "highspeed", action: "highSpeed"
-            }
+			tileAttribute ("device.level", key: "SLIDER_CONTROL") {
+				attributeState "level", action:"switch level.setLevel"
+			}
 		}
-		standardTile("indicator", "device.indicatorStatus", height: 2, width: 3, inactiveLabel: false, decoration: "flat") {
+
+		standardTile("indicator", "device.indicatorStatus", height: 2, width: 2, inactiveLabel: false, decoration: "flat") {
 			state "when off", action:"indicator.indicatorWhenOn", icon:"st.indicators.lit-when-off"
 			state "when on", action:"indicator.indicatorNever", icon:"st.indicators.lit-when-on"
 			state "never", action:"indicator.indicatorWhenOff", icon:"st.indicators.never-lit"
 		}
-		standardTile("refresh", "device.switch", height: 2, width: 3, inactiveLabel: false, decoration: "flat") {
+		standardTile("refresh", "device.switch", height: 2, width: 2, inactiveLabel: false, decoration: "flat") {
 			state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
 		}
-        valueTile("currentSpeed", "device.currentSpeed", height: 2, width: 2, canChangeIcon: false, inactiveLabel: false, decoration: "flat") {
-            state ("default", label:'${currentValue}')
+        standardTile("rampRate", "device.switch", height: 2, width: 2, inactiveLabel: false, decoration: "flat") {
+        	state "default", label:"Fix Ramp Rate", action:"fixRampRate"
         }
-
-//Speed control row
-        standardTile("lowSpeed", "device.level", height: 2, width: 2, inactiveLabel: false, decoration: "flat") {
-            state "lowSpeed", label:'LOW', action:"lowSpeed", icon:"st.Home.home30"
-        }
-        standardTile("medSpeed", "device.level", height: 2, width: 2, inactiveLabel: false, decoration: "flat") {
-            state "medSpeed", label:'MED', action:"medSpeed", icon:"st.Home.home30"
-        }
-        standardTile("highSpeed", "device.level", height: 2, width: 2, inactiveLabel: false, decoration: "flat") {
-            state "highSpeed", label:'HIGH', action:"highSpeed", icon:"st.Home.home30"
-        }
-
-        valueTile("statusText", "statusText", inactiveLabel: false, width: 2, height: 2) {
-			state "statusText", label:'${currentValue}', backgroundColor:"#ffffff"
-		}
 
 		main(["switch"])
-		details(["switch", "lowSpeed", "medSpeed", "highSpeed", "indicator", "refresh"])
+		details(["switch", "refresh", "indicator", "rampRate"])
 	}
 }
 
 def parse(String description) {
-    
 	def item1 = [
 		canBeCurrentState: false,
 		linkText: getLinkText(device),
@@ -82,12 +93,6 @@ def parse(String description) {
 		item1.displayed = displayed(description, item1.isStateChange)
 		result = [item1]
 	}
-    
-	def statusTextmsg = ""
-    statusTextmsg = "Current fan speed setting is ${device.currentState('currentSpeed').value}."
-    sendEvent("name":"statusText", "value":statusTextmsg)
-    log.debug statusTextmsg
-
 	log.debug "Parse returned ${result?.descriptionText}"
 	result
 }
@@ -154,15 +159,6 @@ def doCreateEvent(physicalgraph.zwave.Command cmd, Map item1) {
 		item2.canBeCurrentState = true
 		item2.isStateChange = isStateChange(device, item2.name, item2.value)
 		item2.displayed = false
-        if (item2.value == "30") {
-        	sendEvent(name: "currentSpeed", value: "LOW" as String)
-        }
-        if (item2.value == "62") {
-        	sendEvent(name: "currentSpeed", value: "MEDIUM" as String)
-        }
-        if (item2.value == "99") {
-        	sendEvent(name: "currentSpeed", value: "HIGH" as String)
-        }        
 		result << item2
 	}
 	result
@@ -190,29 +186,16 @@ def off() {
 }
 
 def setLevel(value) {
-    def level = Math.min(value as Integer, 99)
+	def valueaux = value as Integer
+	def level = Math.min(valueaux, 99)
 	delayBetween ([zwave.basicV1.basicSet(value: level).format(), zwave.switchMultilevelV1.switchMultilevelGet().format()], 5000)
 }
 
 def setLevel(value, duration) {
-    def level = Math.min(value as Integer, 99)
+	def valueaux = value as Integer
+	def level = Math.min(valueaux, 99)
 	def dimmingDuration = duration < 128 ? duration : 128 + Math.round(duration / 60)
 	zwave.switchMultilevelV2.switchMultilevelSet(value: level, dimmingDuration: dimmingDuration).format()
-}
-
-def lowSpeed() {
-	log.debug "Low speed settings"
-    delayBetween ([zwave.basicV1.basicSet(value: 30).format(), zwave.switchMultilevelV1.switchMultilevelGet().format()], 5000)
-}
-
-def medSpeed() {
-	log.debug "Medium speed settings"
-    delayBetween ([zwave.basicV1.basicSet(value: 62).format(), zwave.switchMultilevelV1.switchMultilevelGet().format()], 5000)
-}
-
-def highSpeed() {
-	log.debug "High speed settings"
-    delayBetween ([zwave.basicV1.basicSet(value: 99).format(), zwave.switchMultilevelV1.switchMultilevelGet().format()], 5000)
 }
 
 def poll() {
@@ -236,6 +219,16 @@ def indicatorWhenOff() {
 def indicatorNever() {
 	sendEvent(name: "indicatorStatus", value: "never", display: false)
 	zwave.configurationV1.configurationSet(configurationValue: [2], parameterNumber: 3, size: 1).format()
+}
+
+def fixRampRate() {
+	log.debug("Adjusting ramp rate")
+    delayBetween([
+        zwave.configurationV1.configurationSet(configurationValue: [1], parameterNumber: 7, size: 1).format(), // default = 1
+        zwave.configurationV1.configurationSet(configurationValue: [1], parameterNumber: 8, size: 1).format(), // default = 3
+        zwave.configurationV1.configurationSet(configurationValue: [1], parameterNumber: 9, size: 1).format(), // default = 1
+        zwave.configurationV1.configurationSet(configurationValue: [1], parameterNumber: 10, size: 1).format() // default = 3
+    ], 500)
 }
 
 def invertSwitch(invert=true) {

@@ -6,7 +6,7 @@
  metadata {
 
 
-	definition (name: "My PSM01 Sensor", namespace: "jscgs350", author: "SmartThings/Paul Spee") {
+	definition (name: "My PSM01 Sensor v2", namespace: "jscgs350", author: "SmartThings/Paul Spee") {
 		capability "Contact Sensor"
 		capability "Temperature Measurement"
 		capability "Illuminance Measurement"
@@ -19,15 +19,18 @@
 		fingerprint deviceId: "0x2001", inClusters: "0x30,0x31,0x80,0x84,0x70,0x85,0x72,0x86"
 	}
 
-	tiles {
-
-		valueTile("contact", "device.contact", width: 2, height: 2) {
-			state "closed", label: 'Closed', icon: "st.contact.contact.closed", backgroundColor: "#79b821"
-			state "open", label: 'Open', icon: "st.contact.contact.open", backgroundColor: "#ffa81e"
+	tiles(scale: 2) {
+		multiAttributeTile(name:"contact", type: "lighting", width: 6, height: 4){
+			tileAttribute ("device.contact", key: "PRIMARY_CONTROL") {
+				attributeState "closed", label: 'Closed', icon: "st.contact.contact.closed", backgroundColor: "#79b821"
+				attributeState "open", label: 'Open', icon: "st.contact.contact.open", backgroundColor: "#ffa81e"
+			}
+            tileAttribute ("statusText", key: "SECONDARY_CONTROL") {
+           		attributeState "statusText", label:'${currentValue}'       		
+            }
 		}
-
-		valueTile("temperature", "device.temperature", inactiveLabel: false) {
-			state "temperature", label:'${currentValue}°',
+		valueTile("temperature", "device.temperature", width: 3, height: 2, inactiveLabel: false) {
+			state "temperature", icon:"st.tesla.tesla-hvac", label:'${currentValue}°',
 			backgroundColors:[
 				[value: 31, color: "#153591"],
 				[value: 44, color: "#1e9cbb"],
@@ -39,20 +42,24 @@
 			]
 		}
 
-		valueTile("illuminance", "device.illuminance", inactiveLabel: false) {
+		valueTile("illuminance", "device.illuminance", width: 3, height: 2, inactiveLabel: false) {
 			state "luminosity", label:'${currentValue} ${unit}', unit:"lux"
 		}
         
-		valueTile("battery", "device.battery", inactiveLabel: false, decoration: "flat") {
+		valueTile("battery", "device.battery", width: 2, height: 2, inactiveLabel: false, decoration: "flat") {
 			state "battery", label:'${currentValue}% battery', unit:""
 		}
         
-		standardTile("configure", "device.configure", inactiveLabel: false, decoration: "flat") {
+		standardTile("configure", "device.configure", width: 2, height: 2, inactiveLabel: false, decoration: "flat") {
 			state "configure", label:'', action:"configuration.configure", icon:"st.secondary.configure"
 		}
 
-		standardTile("refresh", "device.thermostatMode", inactiveLabel: false, decoration: "flat") {
+		standardTile("refresh", "device.thermostatMode", width: 2, height: 2, inactiveLabel: false, decoration: "flat") {
 			state "default", action:"polling.poll", icon:"st.secondary.refresh"
+		}
+
+        valueTile("statusText", "statusText", inactiveLabel: false, width: 2, height: 2) {
+			state "statusText", label:'${currentValue}', backgroundColor:"#ffffff"
 		}
 
 		main(["contact", "temperature", "illuminance"])
@@ -88,6 +95,12 @@ def parse(Map evt){
     if (evt)
     	result << evt;
 //    log.debug "Parse(Map) returned ${result}"
+
+	def statusTextmsg = ""
+    statusTextmsg = "Door is ${device.currentState('contact').value}, temp is ${device.currentState('temperature').value}°, and illuminance is ${device.currentState('illuminance').value} LUX."
+    sendEvent("name":"statusText", "value":statusTextmsg)
+    log.debug statusTextmsg
+
     return result
 }
 
@@ -102,6 +115,12 @@ def parse(String description)
 		def evt = zwaveEvent(cmd)
         result << createEvent(evt)
 	}
+
+	def statusTextmsg = ""
+    statusTextmsg = "Door is ${device.currentState('contact').value}, temp is ${device.currentState('temperature').value}°, and illuminance is ${device.currentState('illuminance').value} LUX."
+    sendEvent("name":"statusText", "value":statusTextmsg)
+    log.debug statusTextmsg
+
 	log.debug "Parse returned ${result}"
 	return result
 }

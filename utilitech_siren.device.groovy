@@ -5,7 +5,7 @@
  *  Date: 2014-07-15
  */
 metadata {
-	definition (name: "My Utilitech Z-Wave Siren", namespace: "jscgs350", author: "SmartThings") {
+	definition (name: "My Utilitech Z-Wave Siren v2", namespace: "jscgs350", author: "SmartThings") {
 		capability "Actuator"
         capability "Alarm"
         capability "Battery"
@@ -13,38 +13,53 @@ metadata {
         capability "Refresh"
         capability "Sensor"
 		capability "Switch"
-
+		attribute "alarmState", "string"
 
 		fingerprint inClusters: "0x20,0x25,0x86,0x80,0x85,0x72,0x71"
 	}
 
-	simulator {
-		// reply messages
-		reply "2001FF,2002": "command: 2003, payload: FF"
-		reply "200100,2002": "command: 2003, payload: 00"
-		reply "200121,2002": "command: 2003, payload: 21"
-		reply "200142,2002": "command: 2003, payload: 42"
-		reply "2001FF,delay 3000,200100,2002": "command: 2003, payload: 00"
-	}
-
-	tiles {
-		standardTile("alarm", "device.alarm", width: 2, height: 2) {
-			state "off", label:'off', action:'alarm.strobe', icon:"st.alarm.alarm.alarm", backgroundColor:"#ffffff"
-			state "both", label:'alarm!', action:'alarm.off', icon:"st.alarm.alarm.alarm", backgroundColor:"#e86d13"
+	tiles(scale: 2) {
+		multiAttributeTile(name:"alarm", type: "lighting", width: 6, height: 4, canChangeIcon: true){
+			tileAttribute ("device.alarm", key: "PRIMARY_CONTROL") {
+				attributeState "both", label:'alarm!', action:'alarm.off', icon:"st.alarm.alarm.alarm", backgroundColor:"#e86d13"
+				attributeState "off", label:'off', action:'alarm.strobe', icon:"st.alarm.alarm.alarm", backgroundColor:"#ffffff"
+			}
+            tileAttribute ("statusText", key: "SECONDARY_CONTROL") {
+           		attributeState "statusText", label:'${currentValue}'       		
+            }
 		}
-		standardTile("off", "device.alarm", inactiveLabel: false, decoration: "flat") {
+		standardTile("off", "device.alarm", width: 2, height: 2, inactiveLabel: false, decoration: "flat") {
 			state "default", label:'', action:"alarm.off", icon:"st.secondary.off"
 		}
-        valueTile("battery", "device.battery", inactiveLabel: false, decoration: "flat") {
+        valueTile("battery", "device.battery", width: 3, height: 2, inactiveLabel: false, decoration: "flat") {
 			state "battery", label:'${currentValue}% battery', unit:""
 		}
-        standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat") {
+        standardTile("refresh", "device.refresh", width: 3, height: 2, inactiveLabel: false, decoration: "flat") {
 			state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
 		}
-        
+        valueTile("statusText", "statusText", inactiveLabel: false, width: 2, height: 2) {
+			state "statusText", label:'${currentValue}', backgroundColor:"#ffffff"
+		}        
 		main "alarm"
-		details(["alarm","off","battery","refresh"])
+		details(["alarm","battery","refresh"])
 	}
+}
+
+def parse(String description) {
+	log.debug "parse($description)"
+	def result = null
+	def cmd = zwave.parse(description, [0x20: 1])
+	if (cmd) {
+		result = createEvents(cmd)
+	}
+    
+    def statusTextmsg = ""
+    statusTextmsg = "Siren is ${device.currentState('alarmState').value} (tap to toggle on/off)."
+    sendEvent("name":"statusText", "value":statusTextmsg)
+//    log.debug statusTextmsg
+
+	log.debug "Parse returned ${result?.descriptionText}"
+	return result
 }
 
 def createEvents(physicalgraph.zwave.commands.batteryv1.BatteryReport cmd) {
@@ -117,32 +132,25 @@ def refresh() {
 	zwave.batteryV1.batteryGet().format()
 }
 
-def parse(String description) {
-	log.debug "parse($description)"
-	def result = null
-	def cmd = zwave.parse(description, [0x20: 1])
-	if (cmd) {
-		result = createEvents(cmd)
-	}
-	log.debug "Parse returned ${result?.descriptionText}"
-	return result
-}
-
 def createEvents(physicalgraph.zwave.commands.basicv1.BasicReport cmd)
 {
 	def switchValue = cmd.value ? "on" : "off"
 	def alarmValue
 	if (cmd.value == 0) {
 		alarmValue = "off"
+        sendEvent(name: "alarmState", value: "OFF, waiting for events")
 	}
 	else if (cmd.value <= 33) {
 		alarmValue = "strobe"
+        sendEvent(name: "alarmState", value: "ON - strobe only!")
 	}
 	else if (cmd.value <= 66) {
 		alarmValue = "siren"
+        sendEvent(name: "alarmState", value: "ON - siren only!")
 	}
 	else {
 		alarmValue = "both"
+        sendEvent(name: "alarmState", value: "ON - strobe and siren!")
 	}
 	[
 		createEvent([name: "switch", value: switchValue, type: "digital", displayed: false]),
